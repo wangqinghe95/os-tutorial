@@ -1,5 +1,6 @@
 #include "screen.h"
 #include <stdarg.h>
+#include "serial.h"
 
 /* VGA 文本模式内存地址 */
 #define VIDEO_MEMORY 0xB8000
@@ -11,6 +12,13 @@
 /* 当前光标位置 */
 static uint16_t cursor_x = 0;
 static uint16_t cursor_y = 0;
+
+// 检查串口是否启用
+#ifdef ENABLE_SERIAL
+    #define SERIAL_ENABLED 1
+#else
+    #define SERIAL_ENABLED 0
+#endif
 
 /* 清屏函数 */
 void clear_screen(void) {
@@ -67,6 +75,11 @@ static void scroll(void) {
 
 /* 输出单个字符 */
 void put_char(char c, uint8_t color) {
+
+    #if SERIAL_ENABLED
+    serial_write_char(c);
+    #endif
+
     uint16_t* video_mem = (uint16_t*)VIDEO_MEMORY;
     
     /* 处理换行符 */
@@ -113,4 +126,31 @@ void printk_color(const char* str, uint8_t color) {
     while (*str) {
         put_char(*str++, color);
     }
+}
+
+/* 双输出测试函数 */
+void test_dual_output(void) {
+    printk_color("\n=== Dual Output Test ===\n", make_color(CYAN, BLACK));
+    
+    #if SERIAL_ENABLED
+    serial_write_string("\n=== Dual Output Test ===\n");
+    #endif
+    
+    printk("This message appears in both VGA and serial output\n");
+    
+    printk_color("VGA: ", make_color(GREEN, BLACK));
+    printk("Green text on VGA\n");
+    
+    printk_color("Serial: ", make_color(YELLOW, BLACK));
+    printk("Yellow text on VGA, plain text on serial\n");
+    
+    #if SERIAL_ENABLED
+    serial_write_string("Serial: Plain text on serial\n");
+    #endif
+    
+    printk("Test completed.\n");
+    
+    #if SERIAL_ENABLED
+    serial_write_string("Test completed.\n");
+    #endif
 }

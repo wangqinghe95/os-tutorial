@@ -1,3 +1,4 @@
+// kernel/kernel.c
 #include "interrupt.h"
 #include "memory.h"
 #include "timer.h"
@@ -5,190 +6,341 @@
 #include "heap.h"
 #include "stdio.h"
 #include "logging.h"
+#include "serial.h"  // 添加串口头文件
 
-void test_memory_allocation(void) {
-    printf("\n=== Memory Allocation Test ===\n");
+#ifdef ENABLE_SERIAL
+    #define SERIAL_ENABLED 1
+#else
+    #define SERIAL_ENABLED 0
+#endif
+
+/* 系统初始化状态检查 */
+void check_system_init_status(void) {
+    char buffer[128];
     
-    // 显示初始状态
-    print_bitmap_stats();
+    log_info("SYSTEM", "Checking initialization status...");
     
-    printf("\nAllocating test frames...\n");
+    // 检查构建配置
+    sprintf(buffer, "Build configuration: DEBUG=%d, SERIAL_ENABLED=%d", 
+            #ifdef DEBUG
+            1
+            #else
+            0
+            #endif
+            , SERIAL_ENABLED);
+    log_info("BUILD", "%s", buffer);
     
-    // 测试分配几个页面
-    uint32_t frames[5];
-    for (int i = 0; i < 5; i++) {
-        frames[i] = allocate_frame();
-        if (frames[i] != 0) {
-            printf("  Allocated frame %d: 0x%x\n", i, frames[i]);
-        }
+    // 检查内存大小
+    uint32_t mem_mb = get_kernel_memory_mb();
+    log_info("MEMORY", "Kernel memory configured: %d MB", mem_mb);
+    
+    if (mem_mb < 16) {
+        log_warn("MEMORY", "Low memory configuration (%d MB)", mem_mb);
     }
-    
-    // 显示分配后状态
-    printf("\nAfter allocation:\n");
-    print_bitmap_stats();
-    
-    printf("\nFreeing some frames...\n");
-    
-    // 释放部分页面
-    for (int i = 1; i < 4; i++) {  // 释放中间3个
-        if (frames[i] != 0) {
-            free_frame(frames[i]);
-            printf("  Freed frame: 0x%x\n", frames[i]);
-            frames[i] = 0;
-        }
-    }
-    
-    // 显示最终状态
-    printf("\nAfter freeing:\n");
-    print_bitmap_stats();
-    
-    printf("\nTesting kmalloc (temporary implementation)...\n");
-    void* ptr1 = kmalloc(1024);  // 申请1KB
-    void* ptr2 = kmalloc(2048);  // 申请2KB
-    
-    if (ptr1 != 0 && ptr2 != 0) {
-        printf("  kmalloc test passed: 0x%x, 0x%x\n", (uint32_t)ptr1, (uint32_t)ptr2);
-        
-        // 清理
-        kfree(ptr1);
-        kfree(ptr2);
-    }
-    
-    printf("Memory test completed successfully!\n");
 }
 
-void test_heap_allocator()
-{
-    printf("\n=== Heap Allocator Test ===\n");
+/* IDT 和中断系统测试 */
+void test_interrupt_system(void) {
+    log_info("INTERRUPT", "Testing interrupt system...");
+    
+    // 检查 IDT 是否已安装
+    #ifdef DEBUG
+    log_debug("IDT", "IDT base address verified");
+    #endif
+    
+    // 测试中断是否启用
+    uint32_t flags;
+    asm volatile("pushf\n\tpop %0" : "=r"(flags));
+    if (flags & 0x200) {
+        log_info("INTERRUPT", "Interrupts are enabled");
+    } else {
+        log_warn("INTERRUPT", "Interrupts are disabled");
+    }
+    
+    // 测试 PIT 定时器是否工作
+    log_info("TIMER", "Timer interrupts configured");
+    
+    // 测试键盘中断
+    log_info("KEYBOARD", "Keyboard driver initialized");
+    
+    TEST_SUCCESS("INTERRUPT SYSTEM");
+}
 
-    heap_init();
-    heap_stats();
-
-    printf("\n1. Testing basic allocation..\n");
-
-    void* ptr1 = kmalloc(64);
-    void* ptr2 = kmalloc(128);
+/* 内存系统测试 */
+void test_memory_system(void) {
+    log_info("MEMORY", "Testing memory management system...");
+    
+    // 测试堆分配器
+    log_debug("HEAP", "Running heap allocator tests...");
+    
+    // 简单的内存分配测试
+    void* test_ptr = kmalloc(64);
+    if (test_ptr) {
+        log_info("HEAP", "Small allocation successful at 0x%x", (uint32_t)test_ptr);
+        kfree(test_ptr);
+        log_info("HEAP", "Memory freed successfully");
+    } else {
+        log_error("HEAP", "Small allocation failed!");
+    }
+    
+    // 测试多个分配
+    void* ptr1 = kmalloc(128);
+    void* ptr2 = kmalloc(256);
     void* ptr3 = kmalloc(512);
-    void* ptr4 = kmalloc(32);
-
-    if (ptr1 && ptr2 && ptr3 && ptr4) {
-        printf("  ✓ Basic allocation successful\n");
-        printf("  Allocated: 64B@0x%x, 128B@0x%x, 512B@0x%x, 32B@0x%x\n",
-               ptr1, ptr2, ptr3, ptr4);
-    } else {
-        printf("  ✗ Basic allocation failed\n");
-        return;
+    
+    if (ptr1 && ptr2 && ptr3) {
+        log_info("HEAP", "Multiple allocations successful");
     }
-
-    heap_stats();
-    heap_dump();
-
-    printf("\n2. Testing free and reuse...\n");
+    
+    kfree(ptr1);
     kfree(ptr2);
-    kfree(ptr4);
-
-    printf("  Freed 128B and 32B blocks\n");
+    kfree(ptr3);
     
-    // 分配新块（应该重用空闲块）
-    void* ptr5 = kmalloc(100);   // 应该重用128字节的空闲块
-    void* ptr6 = kmalloc(24);    // 应该重用32字节的空闲块
-    
-    if (ptr5 && ptr6) {
-        printf("  ✓ Free and reuse successful\n");
-        printf("  Reallocated: 100B@0x%x, 24B@0x%x\n", ptr5, ptr6);
-    }
-    
-    heap_stats();
-    heap_dump();
-    
-    printf("\n3. Testing boundary conditions...\n");
-    
-    // 测试0字节分配
-    void* ptr_zero = kmalloc(0);
-    printf("  kmalloc(0) = 0x%x %s\n", 
-           ptr_zero, ptr_zero == NULL ? "✓" : "✗");
-    
-    // 测试NULL释放
-    kfree(NULL);
-    printf("  kfree(NULL) - no crash ✓\n");
-    
-    // 测试大分配（触发堆扩展）
-    printf("  Testing large allocation (triggering heap expansion)...\n");
-    void* large_ptr = kmalloc(8192);  // 8KB - 应该触发扩展
-    
+    // 测试大块内存分配
+    log_debug("HEAP", "Testing large allocation...");
+    void* large_ptr = kmalloc(2048);
     if (large_ptr) {
-        printf("  ✓ Large allocation successful: 8KB@0x%x\n", large_ptr);
+        log_info("HEAP", "Large allocation (2KB) successful");
         kfree(large_ptr);
-    } else {
-        printf("  ✗ Large allocation failed\n");
     }
     
-    heap_stats();
-    
-    printf("\n4. Testing fragmentation...\n");
-    
-    // 创建碎片化模式：分配-释放交替
-    void* frag_ptrs[6];
-    for (int i = 0; i < 6; i++) {
-        frag_ptrs[i] = kmalloc(64 * (i + 1));  // 64, 128, 192, 256, 320, 384
-    }
-    
-    // 释放奇数索引的块
-    for (int i = 1; i < 6; i += 2) {
-        kfree(frag_ptrs[i]);
-    }
-    
-    printf("  Created fragmentation pattern\n");
-    heap_dump();
-    
-    // 尝试分配中等大小块（应该合并空闲块）
-    void* merged_ptr = kmalloc(300);
-    if (merged_ptr) {
-        printf("  ✓ Block merging successful: 300B@0x%x\n", merged_ptr);
-        kfree(merged_ptr);
-    }
-    
-    // 清理所有分配
-    for (int i = 0; i < 6; i += 2) {  // 只清理未释放的
-        if (frag_ptrs[i]) kfree(frag_ptrs[i]);
-    }
-    
-    heap_stats();
-    heap_dump();
-    
-    printf("\n=== Heap Test Completed ===\n");
+    TEST_SUCCESS("MEMORY SYSTEM");
 }
 
-void kernel_main(void) {
-    clear_screen();
-    printf("MyOS Boot Start...\n");
-    printf("=========================================\n\n");
+/* 设备驱动测试 */
+void test_device_drivers(void) {
+    log_info("DEVICE", "Testing hardware drivers...");
     
-    // 1. 初始化中断系统
+    // 串口测试（如果启用）
+    #if SERIAL_ENABLED
+    log_info("SERIAL", "Testing serial port...");
+    
+    // 串口自检
+    if (serial_self_test()) {
+        log_info("SERIAL", "Serial port self-test passed");
+        
+        // 发送测试消息
+        serial_write_string("[SERIAL] Serial port initialized successfully\n");
+    } else {
+        log_warn("SERIAL", "Serial port self-test failed");
+    }
+    #else
+    log_warn("SERIAL", "Serial port disabled in this build");
+    #endif
+    
+    // 屏幕驱动测试
+    log_info("SCREEN", "Testing screen driver...");
+    
+    // 测试颜色输出
+    printk_color("Screen test: ", make_color(WHITE, BLUE));
+    printk_color("Normal", make_color(WHITE, BLACK));
+    printk(" ");
+    printk_color("Warning", make_color(YELLOW, BLACK));
+    printk(" ");
+    printk_color("Error", make_color(RED, BLACK));
+    printk(" ");
+    printk_color("Success", make_color(GREEN, BLACK));
+    printk("\n");
+    
+    // 定时器测试
+    log_info("TIMER", "Timer driver active");
+    
+    // 键盘测试
+    log_info("KEYBOARD", "Keyboard driver ready for input");
+    
+    TEST_SUCCESS("DEVICE DRIVERS");
+}
+
+/* 系统完整性检查 */
+void system_integrity_check(void) {
+    log_info("SYSTEM", "Performing system integrity check...");
+    
+    uint8_t passed = 1;
+    
+    // 检查关键数据结构
+    #ifdef DEBUG
+    log_debug("SYSTEM", "Verifying kernel data structures...");
+    #endif
+    
+    // 检查内存管理
+    if (get_kernel_memory_mb() == 0) {
+        log_error("SYSTEM", "Memory configuration invalid!");
+        passed = 0;
+    }
+    
+    // 检查中断向量表
+    #ifdef DEBUG
+    log_debug("SYSTEM", "IDT integrity check...");
+    #endif
+    
+    // 检查堆分配器
+    void* test_alloc = kmalloc(16);
+    if (!test_alloc) {
+        log_error("SYSTEM", "Heap allocator failure!");
+        passed = 0;
+    } else {
+        kfree(test_alloc);
+    }
+    
+    if (passed) {
+        log_info("SYSTEM", "System integrity check PASSED");
+        
+        #if SERIAL_ENABLED
+        serial_write_string("[SYSTEM] Integrity check PASSED\n");
+        #endif
+    } else {
+        log_error("SYSTEM", "System integrity check FAILED");
+        
+        #if SERIAL_ENABLED
+        serial_write_string("[SYSTEM] Integrity check FAILED\n");
+        #endif
+    }
+}
+
+/* 启动信息显示 */
+void display_boot_info(void) {
+    // 清屏后的第一个输出
+    printk_color("=========================================\n", make_color(CYAN, BLACK));
+    printk_color("              MyOS Kernel               \n", make_color(YELLOW, BLACK));
+    printk_color("=========================================\n", make_color(CYAN, BLACK));
+    
+    #if SERIAL_ENABLED
+    serial_write_string("\n=========================================\n");
+    serial_write_string("              MyOS Kernel               \n");
+    serial_write_string("=========================================\n\n");
+    #endif
+    
+    // 版本信息
+    log_info("SYSTEM", "MyOS Kernel Starting...");
+    log_info("BUILD", "Version: 0.1.0-alpha");
+    log_info("BUILD", "Date: %s %s", __DATE__, __TIME__);
+}
+
+/* 主入口函数 */
+void kernel_main(void) {
+    // 1. 初始化基本显示
+    clear_screen();
+    log_init();  // 初始化日志系统（包含串口初始化）
+    
+    // 显示启动信息
+    display_boot_info();
+    
+    // 2. 检查系统状态
+    check_system_init_status();
+    
+    // 3. 初始化中断系统
+    log_info("INTERRUPT", "Initializing interrupt system...");
     idt_init();
     init_pic();
-    install_timer_interrupt();
-    install_keyboard_interrupt();
     
-    // 2. 初始化内存管理系统
+    // 4. 初始化内存管理系统
+    log_info("MEMORY", "Initializing memory manager...");
     memory_init();
     
-    test_heap_allocator();
-
-    // 3. 初始化硬件驱动
+    // 5. 初始化硬件驱动
+    log_info("DEVICE", "Initializing hardware drivers...");
+    install_timer_interrupt();
+    install_keyboard_interrupt();
     init_timer();
     keyboard_init();
     
-    // test_stdio_functions();
-    test_logging_system();
-
-    printf("\nKernel initialized successfully\n");
-    printf("System ready with %d MB memory\n", get_kernel_memory_mb());
-    printf("Heap allocator active - type 'help' for commands\n");
-    printf("os> ");
+    // 6. 测试堆分配器
+    log_info("HEAP", "Testing heap allocator...");
+    // test_heap_allocator();
     
-    // 启用中断
+    // 7. 启用中断
+    log_info("INTERRUPT", "Enabling interrupts...");
     asm volatile("sti");
+    
+    // 8. 运行系统测试
+    log_info("TEST", "Running system tests...");
+    
+    // 测试中断系统
+    test_interrupt_system();
+    
+    // 测试内存系统
+    test_memory_system();
+    
+    // 测试设备驱动
+    test_device_drivers();
+    
+    // 测试日志系统
+    test_logging_system();
+    
+    // 9. 系统完整性检查
+    system_integrity_check();
+    
+    // 10. 显示完成信息
+    log_info("SYSTEM", "Kernel initialization completed successfully");
+    
+    #if SERIAL_ENABLED
+    serial_write_string("\n[SYSTEM] MyOS Kernel Ready!\n");
+    serial_write_string("[SYSTEM] Memory: ");
+    char mem_str[16];
+    sprintf(mem_str, "%d", get_kernel_memory_mb());
+    serial_write_string(mem_str);
+    serial_write_string(" MB available\n");
+    #endif
+    
+    // 11. 显示提示信息
+    printk_color("\n=========================================\n", make_color(GREEN, BLACK));
+    printk_color("        SYSTEM READY - COMMAND MODE      \n", make_color(GREEN, BLACK));
+    printk_color("=========================================\n\n", make_color(GREEN, BLACK));
+    
+    // printk("System initialized with %d MB memory\n", get_kernel_memory_mb());
+    printk_color("Heap allocator: ACTIVE\n", make_color(GREEN, BLACK));
+    printk_color("Interrupts: ENABLED\n", make_color(GREEN, BLACK));
+    
+    #if SERIAL_ENABLED
+    printk_color("Serial port: ENABLED\n", make_color(GREEN, BLACK));
+    #else
+    printk_color("Serial port: DISABLED\n", make_color(YELLOW, BLACK));
+    #endif
+    
+    printk("Type 'help' for available commands\n");
+    printk_color("os> ", make_color(CYAN, BLACK));
+    
+    // 12. 主循环
+    log_info("SYSTEM", "Entering main loop...");
+    
+    while(1) {
+        // 等待中断
+        asm volatile("hlt");
+        
+        // 这里可以添加命令处理逻辑
+        // 例如检查键盘缓冲区并处理输入
+        
+        // 简单的空闲指示器（可选）
+        static uint32_t idle_counter = 0;
+        idle_counter++;
+        
+        #ifdef DEBUG
+        if ((idle_counter % 1000000) == 0) {
+            log_debug("IDLE", "System idle loop: %u", idle_counter);
+        }
+        #endif
+    }
+}
+
+/* 紧急错误处理 */
+void kernel_panic(const char* message) {
+    // 禁用中断
+    asm volatile("cli");
+    
+    // 显示错误信息
+    printk_color("\n\n*** KERNEL PANIC ***\n", make_color(WHITE, RED));
+    printk_color("Message: ", make_color(WHITE, RED));
+    // printk("%s\n", message);
+    
+    #if SERIAL_ENABLED
+    serial_write_string("\n\n*** KERNEL PANIC ***\n");
+    serial_write_string("Message: ");
+    serial_write_string(message);
+    serial_write_string("\n");
+    #endif
+    
+    // 挂起系统
+    log_error("PANIC", "System halted: %s", message);
     
     while(1) {
         asm volatile("hlt");

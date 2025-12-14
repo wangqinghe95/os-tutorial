@@ -3,6 +3,12 @@
 
 #include "types.h"
 
+#ifdef DEBUG_SERIAL
+    #define SERIAL_ENABLED 1
+#else
+    #define SERIAL_ENABLED 0
+#endif
+
 /* 屏幕颜色枚举 */
 typedef enum {
     BLACK = 0,

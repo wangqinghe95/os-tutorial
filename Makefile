@@ -16,10 +16,21 @@ SCRIPT_DIR = scripts
 QEMU_MEMORY ?= 64
 KERNEL_MEMORY_MB ?= 64
 
+DEBUG ?= 1
+ENABLE_SERIAL ?= 1
+
 # 编译和链接标志 - 传递内存大小给内核
 CFLAGS = -m32 -nostdlib -ffreestanding -Wall -Wextra \
          -I$(KERNEL_DIR) -I$(DRIVERS_DIR) -I$(KERNEL_DIR)/memory -I$(LIBS_DIR) \
-         -DKERNEL_MEMORY_MB=$(KERNEL_MEMORY_MB)\
+         -DKERNEL_MEMORY_MB=$(KERNEL_MEMORY_MB)
+
+ifeq ($(DEBUG),1)
+	CFLAGS += -DDEBUG
+endif
+
+ifeq ($(ENABLE_SERIAL),1)
+	CFLAGS += -DENABLE_SERIAL
+endif
 
 LDFLAGS = -m elf_i386 -T $(SCRIPT_DIR)/linker.ld -nostdlib
 ASFLAGS = -f elf32
@@ -95,34 +106,51 @@ run: $(OS_IMAGE)
 	@echo "Starting QEMU with $(QEMU_MEMORY)MB RAM..."
 	$(QEMU) -m $(QEMU_MEMORY) -drive format=raw,file=$(OS_IMAGE)
 
-# 预定义的内存配置
-run-16: $(OS_IMAGE)
-	@echo "Starting QEMU with 16MB RAM..."
-	$(QEMU) -m 16 -drive format=raw,file=$(OS_IMAGE)
+# 串口调试模式 (VSCode终端输出)
+debug: $(OS_IMAGE)
+	@echo "=== Debug Mode (Serial Output) ==="
+	@echo "Press Ctrl+A then X to exit"
+	@echo "Build config: DEBUG=$(DEBUG), ENABLE_SERIAL=$(ENABLE_SERIAL)"
+	$(QEMU) -m $(QEMU_MEMORY) \
+	        -drive format=raw,file=$(OS_IMAGE) \
+	        -nographic \
+	        -serial mon:stdio
 
-run-32: $(OS_IMAGE)
-	@echo "Starting QEMU with 32MB RAM..."
-	$(QEMU) -m 32 -drive format=raw,file=$(OS_IMAGE)
+# 图形模式 (VGA输出)
+graphic: $(OS_IMAGE)
+	@echo "=== Graphic Mode (VGA Output) ==="
+	$(QEMU) -m $(QEMU_MEMORY) \
+	        -drive format=raw,file=$(OS_IMAGE) \
+	        -vga std
 
-run-64: $(OS_IMAGE)
-	@echo "Starting QEMU with 64MB RAM..."
-	$(QEMU) -m 64 -drive format=raw,file=$(OS_IMAGE)
+# 开发模式 (构建带串口支持并运行)
+dev: clean
+	@make ENABLE_SERIAL=1 DEBUG=1
+	@make debug
 
-run-128: $(OS_IMAGE)
-	@echo "Starting QEMU with 128MB RAM..."
-	$(QEMU) -m 128 -drive format=raw,file=$(OS_IMAGE)
+# 发布模式 (构建不带串口的镜像)
+release: clean
+	@make ENABLE_SERIAL=0 DEBUG=0
+	@make graphic
 
-# 构建时指定内存大小
-build-16:
-	@make clean
-	@make KERNEL_MEMORY_MB=16
+# 串口测试模式
+serial-test: clean
+	@echo "=== Serial Test Mode ==="
+	@make ENABLE_SERIAL=1 DEBUG=1
+	@echo "Testing serial output..."
+	$(QEMU) -m $(QEMU_MEMORY) \
+	        -drive format=raw,file=$(OS_IMAGE) \
+	        -nographic \
+	        -serial mon:stdio \
+	        -d guest_errors 2>&1 | tee serial_test.log
 
-build-64:
-	@make clean  
-	@make KERNEL_MEMORY_MB=64
-
-build-128:
-	@make clean
-	@make KERNEL_MEMORY_MB=128
+# GDB调试模式
+gdb: $(OS_IMAGE)
+	@echo "Starting QEMU in GDB debug mode..."
+	$(QEMU) -m $(QEMU_MEMORY) \
+	        -drive format=raw,file=$(OS_IMAGE) \
+	        -s -S \
+	        -nographic \
+	        -serial stdio
 
 .PHONY: all clean run run-16 run-32 run-64 run-128 build-16 build-64 build-128 debug

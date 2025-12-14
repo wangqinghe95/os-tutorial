@@ -229,6 +229,30 @@ int strcmp(const char* s1, const char* s2)
     return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
 
+void kprintf(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    
+    char buffer[256];
+    int len = vsprintf(buffer, fmt, args);
+    
+    // 输出到串口（用于终端显示）
+    for (int i = 0; i < len; i++) {
+        putchar(buffer[i]);
+    }
+    
+    // 输出到 VGA（屏幕显示）
+    printk(buffer);
+    
+    va_end(args);
+}
+
+void test_serial_port()
+{
+    kprintf("MyOS Boot Success!\n");
+    // kprintf("Memory: %d MB available\n", mem_size);
+}
 
 void test_stdio_functions(void)
 {

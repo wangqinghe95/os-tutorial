@@ -18,5 +18,8 @@ size_t strlen(const char* str);
 int strcmp(const char* s1, const char* s2);
 void memset(void* ptr, uint8_t value, uint32_t size);
 
+void kprintf(const char* fmt, ...);
+
 void test_stdio_functions(void);
+void test_serial_port();
 #endif
