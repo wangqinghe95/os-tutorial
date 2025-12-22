@@ -2,6 +2,7 @@
 #include "stdio.h"
 #include "timer.h"
 #include "keyboard.h"
+#include "port.h"
 
 #define IDT_ENTRIES 256
 

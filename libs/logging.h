@@ -15,7 +15,8 @@ typedef enum
 
 void log_init();
 void log_message(log_level_t level, const char* tag, const char* format, ...);
-void log_hex_dump(const char* tag, const void* data, uint32_t size);
+void set_log_level(log_level_t level);
+// void log_hex_dump(const char* tag, const void* data, uint32_t size);
 
 #define log_debug(tag, fmt, ...) log_message(LOG_DEBUG, tag, fmt, ##__VA_ARGS__)
 #define log_info(tag, fmt, ...) log_message(LOG_INFO, tag, fmt, ##__VA_ARGS__)
@@ -38,7 +39,5 @@ void log_hex_dump(const char* tag, const void* data, uint32_t size);
 #define LOG_FMT(fmt, ...) log_info("LOG", fmt, ##__VA_ARGS__)
 #define TEST_PHASE(title) log_info("TEST", "=== %s ===", title)
 #define TEST_SUCCESS(name) log_info("TEST", "%s PASSED", name)
-
-void test_logging_system();
 
 #endif

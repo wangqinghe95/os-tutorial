@@ -1,6 +1,5 @@
 #include "serial.h"
-#include "types.h"
-#include "screen.h"
+#include "port.h"
 
 #define COM1_PORT 0x3F8
 
@@ -19,7 +18,7 @@ void serial_read_char(void)
 {
     while (!serial_received());
 
-    return inb(COM1_PORT);
+    inb(COM1_PORT);
 }
 
 int serial_is_transmit_empty()

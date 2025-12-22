@@ -1,5 +1,6 @@
 #include "keyboard.h"
 #include "stdio.h"
+#include "port.h"
 
 #define INPUT_BUFFER_SIZE 256
 

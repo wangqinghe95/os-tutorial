@@ -1,13 +1,7 @@
-#ifndef SCREEN_H
-#define SCREEN_H
+#ifndef VGA_H
+#define VGA_H
 
 #include "types.h"
-
-#ifdef DEBUG_SERIAL
-    #define SERIAL_ENABLED 1
-#else
-    #define SERIAL_ENABLED 0
-#endif
 
 /* 屏幕颜色枚举 */
 typedef enum {
@@ -29,19 +23,6 @@ typedef enum {
     WHITE = 15
 } vga_color;
 
-// extern void outb(uint16_t port, uint8_t value);
-
-/* 端口输出函数 */
-static inline void outb(uint16_t port, uint8_t value) {
-    asm volatile ("outb %0, %1" : : "a"(value), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t result;
-    asm volatile ("inb %1, %0" : "=a"(result) : "Nd"(port));
-    return result;
-}
-
 /* 组合颜色字节 */
 static inline uint8_t make_color(vga_color fg, vga_color bg) {
     return fg | (bg << 4);
@@ -52,12 +33,8 @@ static inline uint16_t make_vga_entry(char c, uint8_t color) {
     return (uint16_t)c | ((uint16_t)color << 8);
 }
 
-/* 函数声明 */
-void clear_screen(void);
 void put_char(char c, uint8_t color);
-void printk(const char* str);
-void printk_color(const char* str, uint8_t color);
 void set_cursor_pos(uint8_t x, uint8_t y);
-uint16_t get_cursor_pos(void);
+void clear_screen(void);
 
 #endif

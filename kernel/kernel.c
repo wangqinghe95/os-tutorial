@@ -7,6 +7,8 @@
 #include "stdio.h"
 #include "logging.h"
 #include "serial.h"  // 添加串口头文件
+#include "vga.h"
+
 
 #ifdef ENABLE_SERIAL
     #define SERIAL_ENABLED 1
@@ -134,7 +136,7 @@ void test_device_drivers(void) {
     // 测试颜色输出
     printk_color("Screen test: ", make_color(WHITE, BLUE));
     printk_color("Normal", make_color(WHITE, BLACK));
-    printk(" ");
+    printf(" ");
     printk_color("Warning", make_color(YELLOW, BLACK));
     printk(" ");
     printk_color("Error", make_color(RED, BLACK));
@@ -265,7 +267,7 @@ void kernel_main(void) {
     test_device_drivers();
     
     // 测试日志系统
-    test_logging_system();
+    // test_logging_system();
     
     // 9. 系统完整性检查
     system_integrity_check();
@@ -287,7 +289,7 @@ void kernel_main(void) {
     printk_color("        SYSTEM READY - COMMAND MODE      \n", make_color(GREEN, BLACK));
     printk_color("=========================================\n\n", make_color(GREEN, BLACK));
     
-    // printk("System initialized with %d MB memory\n", get_kernel_memory_mb());
+    printf("System initialized with %d MB memory\n", get_kernel_memory_mb());
     printk_color("Heap allocator: ACTIVE\n", make_color(GREEN, BLACK));
     printk_color("Interrupts: ENABLED\n", make_color(GREEN, BLACK));
     
@@ -330,7 +332,7 @@ void kernel_panic(const char* message) {
     // 显示错误信息
     printk_color("\n\n*** KERNEL PANIC ***\n", make_color(WHITE, RED));
     printk_color("Message: ", make_color(WHITE, RED));
-    // printk("%s\n", message);
+    printf("%s\n", message);
     
     #if SERIAL_ENABLED
     serial_write_string("\n\n*** KERNEL PANIC ***\n");

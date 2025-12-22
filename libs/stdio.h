@@ -3,23 +3,29 @@
 
 #include "types.h"
 #include "stdarg.h"
-#include "screen.h"
+#include "vga.h"
 
-int printf(const char* format, ...);
+typedef enum {
+    STDIO_MODE_VGA = 0,
+    STDIO_MODE_SERIAL = 1,
+    STDIO_MODE_BOTH = 2,
+}stdio_mode_t;
+
+void stdio_init(void);
+void stdio_set_mode(stdio_mode_t mode);
+void stdio_set_color(uint8_t color);
+
+int printf_color(uint8_t color, const char* format, ...);
+void printk_color(const char* str, uint8_t color) ;
 int putchar(int c);
 int puts(const char* str);
 
+int printf(const char* format, ...);
 int sprintf(char* buffer, const char* format, ...);
 int vsprintf(char* buffer, const char* format, va_list args);
-
-void itoa(int value, char* str, int base);
-char* strcpy(char* dest, const char* src);
-size_t strlen(const char* str);
-int strcmp(const char* s1, const char* s2);
-void memset(void* ptr, uint8_t value, uint32_t size);
-
 void kprintf(const char* fmt, ...);
 
-void test_stdio_functions(void);
-void test_serial_port();
+void printk(const char* str);
+void printk_color(const char* str, uint8_t color);
+
 #endif

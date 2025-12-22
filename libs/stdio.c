@@ -1,4 +1,17 @@
 #include "stdio.h"
+#include "vga.h"
+#include "serial.h"
+#include "port.h"
+#include "string.h"
+
+#ifdef ENABLE_SERIAL
+    #define SERIAL_ENABLED 1
+#else
+    #define SERIAL_ENABLED 0
+#endif
+
+static stdio_mode_t current_mode = STDIO_MODE_VGA;
+uint8_t current_color;
 
 typedef enum {
     FLAG_NONE = 0,
@@ -6,12 +19,49 @@ typedef enum {
     FLAG_LEFT = 1 << 1,
 } format_flags;
 
-void memset(void* ptr, uint8_t value, uint32_t size)
+void stdio_init(void)
 {
-    uint8_t* p = (uint8_t*)ptr;
-    for(uint32_t i = 0; i < size; i++)
-    {
-        p[i] = value;
+    current_color = make_color(WHITE, BLACK);
+    #if SERIAL_ENABLED
+    current_mode = STDIO_MODE_BOTH;
+    serial_init();
+    #endif
+
+}
+
+void stdio_set_mode(stdio_mode_t mode)
+{
+    #if !SERIAL_ENABLED
+    if (mode == STDIO_MODE_SERIAL || mode == STDIO_MODE_BOTH) {
+        return; // 串口未启用，忽略
+    }
+    #endif
+    current_mode = mode;   
+}
+
+/* 设置输出颜色 */
+void stdio_set_color(uint8_t color) 
+{
+    current_color = color;
+}
+
+/* 核心输出函数：统一处理VGA和串口输出 */
+static void stdio_output_char(char c) 
+{
+    if (current_mode == STDIO_MODE_VGA || current_mode == STDIO_MODE_BOTH) {
+        put_char(c, current_color);
+    }
+    
+    #if SERIAL_ENABLED
+    if (current_mode == STDIO_MODE_SERIAL || current_mode == STDIO_MODE_BOTH) {
+        serial_write_char(c);
+    }
+    #endif
+}
+
+static void stdio_output_string(const char* str) {
+    while (*str) {
+        stdio_output_char(*str++);
     }
 }
 
@@ -24,24 +74,23 @@ int printf(const char* format, ...)
     int len = vsprintf(buffer, format, args);
     va_end(args);
 
-    printk(buffer);
+    stdio_output_string(buffer);
 
     return len;
 }
 
 int putchar(int c)
 {
-    put_char((char)c, make_color(WHITE, BLACK));
+    stdio_output_char((char)c);
     return c;
 }
 
 int puts(const char* str)
 {
-    printk(str);
-    put_char('\n', make_color(WHITE,BLACK));
-    return strlen(str);
+    stdio_output_string(str);
+    stdio_output_char('\n');
+    return 0;
 }
-
 
 int sprintf(char* buffer, const char* format, ...)
 {
@@ -75,6 +124,35 @@ static void format_number(char* dest, int num, int base, int width, format_flags
     char num_buf[32];
     itoa(num, num_buf, base);
     format_string(dest, num_buf, width, flags);
+}
+
+int printf_color(uint8_t color, const char* format, ...) 
+{
+    uint8_t old_color = current_color;
+    stdio_set_color(color);
+    
+    char buffer[256];
+    va_list args;
+    va_start(args, format);
+    int len = vsprintf(buffer, format, args);
+    va_end(args);
+    
+    stdio_output_string(buffer);
+    stdio_set_color(old_color);
+    return len;
+}
+
+/* 输出字符串（指定颜色） */
+void printk_color(const char* str, uint8_t color)
+{
+    uint8_t old_color = current_color;
+    stdio_set_color(color);
+    stdio_output_string(str);
+    stdio_set_color(old_color);
+}
+
+void printk(const char* str) {
+    stdio_output_string(str);
 }
 
 int vsprintf(char* buffer, const char* format, va_list args)
@@ -161,74 +239,6 @@ int vsprintf(char* buffer, const char* format, va_list args)
 }
 
 
-void itoa(int value, char* str, int base)
-{
-    char* ptr = str;
-    char* ptr1 = str;
-
-    char tmp_char;
-    int tmp_value;
-
-    if(0 == value) {
-        *ptr++ = '\0';
-        *ptr = '\0';
-        return;
-    }
-
-    while (value)
-    {
-        tmp_value = value;
-        value /= base;
-        *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz"[35 + (tmp_value - value * base)];
-            
-    }
-
-    *ptr-- = '\0';
-
-    while (ptr1 < ptr)
-    {
-        tmp_char = *ptr;
-        *ptr-- = *ptr1;
-        *ptr1++ = tmp_char;
-    }
-}
-
-
-char* strcpy(char* dest, const char* src)
-{
-    char* ptr = dest;
-    while (*src)
-    {
-        *ptr++ = *src++;
-    }
-
-    *ptr = '\0';
-
-    return dest;    
-}
-
-size_t strlen(const char* str)
-{
-    size_t len = 0;
-    while (str[len])
-    {
-        len++;
-    }
-
-    return len;    
-}
-
-int strcmp(const char* s1, const char* s2)
-{
-    while (*s1 &&(*s1 == *s2))
-    {
-        s1++;
-        s2++;
-    }
-
-    return *(const unsigned char*)s1 - *(const unsigned char*)s2;
-}
-
 void kprintf(const char* fmt, ...)
 {
     va_list args;
@@ -246,65 +256,4 @@ void kprintf(const char* fmt, ...)
     printk(buffer);
     
     va_end(args);
-}
-
-void test_serial_port()
-{
-    kprintf("MyOS Boot Success!\n");
-    // kprintf("Memory: %d MB available\n", mem_size);
-}
-
-void test_stdio_functions(void)
-{
- char buffer[128];
-    int result;
-    
-    printk_color("\n=== STDIO Function Tests ===\n", make_color(YELLOW, BLACK));
-    
-    /* 测试 strlen */
-    result = strlen("");
-    printf("strlen('') = %d %s\n", result, result == 0 ? "Yes" : "No");
-    
-    result = strlen("hello");
-    printf("strlen('hello') = %d %s\n", result, result == 5 ? "Yes" : "No");
-    
-    /* 测试 strcpy */
-    strcpy(buffer, "test");
-    result = strcmp(buffer, "test");
-    printf("strcpy -> '%s' %s\n", buffer, result == 0 ? "Yes" : "No");
-    
-    /* 测试 strcmp */
-    result = strcmp("abc", "abc");
-    printf("strcmp('abc', 'abc') = %d %s\n", result, result == 0 ? "Yes" : "No");
-    
-    result = strcmp("abc", "abd");
-    printf("strcmp('abc', 'abd') = %d %s\n", result, result < 0 ? "Yes" : "No");
-    
-    /* 测试 itoa */
-    itoa(123, buffer, 10);
-    printf("itoa(123) -> '%s' %s\n", buffer, strcmp(buffer, "123") == 0 ? "Yes" : "No");
-    
-    itoa(-456, buffer, 10);
-    printf("itoa(-456) -> '%s' %s\n", buffer, strcmp(buffer, "-456") == 0 ? "Yes" : "No");
-    
-    itoa(255, buffer, 16);
-    printf("itoa(255, 16) -> '%s' %s\n", buffer, strcmp(buffer, "ff") == 0 ? "Yes" : "No");
-    
-    /* 测试 sprintf */
-    sprintf(buffer, "Number: %d", 42);
-    printf("sprintf -> '%s' %s\n", buffer, strcmp(buffer, "Number: 42") == 0 ? "Yes" : "No");
-    
-    sprintf(buffer, "Hex: 0x%x", 255);
-    printf("sprintf hex -> '%s' %s\n", buffer, strcmp(buffer, "Hex: 0xff") == 0 ? "Yes" : "No");
-    
-    sprintf(buffer, "Char: %c", 'A');
-    printf("sprintf char -> '%s' %s\n", buffer, strcmp(buffer, "Char: A") == 0 ? "Yes" : "No");
-    
-    sprintf(buffer, "String: %s", "test");
-    printf("sprintf string -> '%s' %s\n", buffer, strcmp(buffer, "String: test") == 0 ? "Yes" : "No");
-    
-    /* 测试 printf */
-    printf("printf test: %d %s %c 0x%x Yes\n", 123, "passed", 'A', 255);
-    
-    printk_color("=== STDIO Tests Completed ===\n", make_color(GREEN, BLACK));    
 }

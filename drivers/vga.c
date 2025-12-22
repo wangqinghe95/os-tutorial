@@ -1,26 +1,16 @@
-#include "screen.h"
-#include <stdarg.h>
-#include "serial.h"
+#include "vga.h"
+#include "port.h"
+#include "stdarg.h"
 
-/* VGA 文本模式内存地址 */
 #define VIDEO_MEMORY 0xB8000
-
-/* 屏幕尺寸 */
 #define SCREEN_WIDTH 80
 #define SCREEN_HEIGHT 25
 
-/* 当前光标位置 */
 static uint16_t cursor_x = 0;
 static uint16_t cursor_y = 0;
 
-// 检查串口是否启用
-#ifdef ENABLE_SERIAL
-    #define SERIAL_ENABLED 1
-#else
-    #define SERIAL_ENABLED 0
-#endif
+/* 只做VGA相关的函数 */
 
-/* 清屏函数 */
 void clear_screen(void) {
     uint16_t* video_mem = (uint16_t*)VIDEO_MEMORY;
     uint8_t color = make_color(WHITE, BLACK);
@@ -35,11 +25,9 @@ void clear_screen(void) {
     set_cursor_pos(0, 0);
 }
 
-/* 更新硬件光标位置 */
 void set_cursor_pos(uint8_t x, uint8_t y) {
     uint16_t pos = y * SCREEN_WIDTH + x;
     
-    /* 向 VGA 控制寄存器发送命令 */
     outb(0x3D4, 0x0F);
     outb(0x3D5, (uint8_t)(pos & 0xFF));
     outb(0x3D4, 0x0E);
@@ -49,23 +37,15 @@ void set_cursor_pos(uint8_t x, uint8_t y) {
     cursor_y = y;
 }
 
-/* 获取当前光标位置 */
-uint16_t get_cursor_pos(void) {
-    return cursor_y * SCREEN_WIDTH + cursor_x;
-}
-
-/* 滚屏 */
 static void scroll(void) {
     uint16_t* video_mem = (uint16_t*)VIDEO_MEMORY;
     uint8_t color = make_color(WHITE, BLACK);
     uint16_t blank = make_vga_entry(' ', color);
     
-    /* 将第2行到最后一行向上移动一行 */
     for (int i = 0; i < (SCREEN_HEIGHT - 1) * SCREEN_WIDTH; i++) {
         video_mem[i] = video_mem[i + SCREEN_WIDTH];
     }
     
-    /* 清空最后一行 */
     for (int i = (SCREEN_HEIGHT - 1) * SCREEN_WIDTH; i < SCREEN_HEIGHT * SCREEN_WIDTH; i++) {
         video_mem[i] = blank;
     }
@@ -73,36 +53,26 @@ static void scroll(void) {
     cursor_y = SCREEN_HEIGHT - 1;
 }
 
-/* 输出单个字符 */
+/* 核心：put_char 现在只负责VGA输出 */
 void put_char(char c, uint8_t color) {
-
-    #if SERIAL_ENABLED
-    serial_write_char(c);
-    #endif
-
     uint16_t* video_mem = (uint16_t*)VIDEO_MEMORY;
     
-    /* 处理换行符 */
     if (c == '\n') {
         cursor_x = 0;
         cursor_y++;
     } 
-    /* 处理回车符 */
     else if (c == '\r') {
         cursor_x = 0;
     }
-    /* 处理制表符 */
     else if (c == '\t') {
         cursor_x = (cursor_x + 4) & ~(4 - 1);
     }
-    /* 处理普通字符 */
     else {
         uint16_t index = cursor_y * SCREEN_WIDTH + cursor_x;
         video_mem[index] = make_vga_entry(c, color);
         cursor_x++;
     }
     
-    /* 检查是否需要换行或滚屏 */
     if (cursor_x >= SCREEN_WIDTH) {
         cursor_x = 0;
         cursor_y++;
@@ -112,45 +82,8 @@ void put_char(char c, uint8_t color) {
         scroll();
     }
     
-    /* 更新光标位置 */
     set_cursor_pos(cursor_x, cursor_y);
 }
 
-/* 输出字符串（默认颜色） */
-void printk(const char* str) {
-    printk_color(str, make_color(WHITE, BLACK));
-}
-
-/* 输出字符串（指定颜色） */
-void printk_color(const char* str, uint8_t color) {
-    while (*str) {
-        put_char(*str++, color);
-    }
-}
-
-/* 双输出测试函数 */
-void test_dual_output(void) {
-    printk_color("\n=== Dual Output Test ===\n", make_color(CYAN, BLACK));
-    
-    #if SERIAL_ENABLED
-    serial_write_string("\n=== Dual Output Test ===\n");
-    #endif
-    
-    printk("This message appears in both VGA and serial output\n");
-    
-    printk_color("VGA: ", make_color(GREEN, BLACK));
-    printk("Green text on VGA\n");
-    
-    printk_color("Serial: ", make_color(YELLOW, BLACK));
-    printk("Yellow text on VGA, plain text on serial\n");
-    
-    #if SERIAL_ENABLED
-    serial_write_string("Serial: Plain text on serial\n");
-    #endif
-    
-    printk("Test completed.\n");
-    
-    #if SERIAL_ENABLED
-    serial_write_string("Test completed.\n");
-    #endif
-}
+/* 移除旧的双输出函数 */
+// void printk() 和 printk_color() 已经移到 stdio.c

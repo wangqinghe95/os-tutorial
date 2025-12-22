@@ -2,6 +2,7 @@
 
 #include "stdio.h"
 #include "interrupt.h"
+#include "string.h"
 
 static uint32_t total_memory = 0;
 // static uint32_t usable_memory = 0;

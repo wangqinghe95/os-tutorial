@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "stdio.h"
+#include "port.h"
 
 volatile uint32_t system_ticks = 0;
 
