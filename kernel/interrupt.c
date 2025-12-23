@@ -7,6 +7,8 @@
 
 #define IDT_ENTRIES 256
 
+const char* interrupt_tag = "INTERRUPT";
+
 /* IDT条目 */
 struct idt_entry {
     uint16_t base_low;
@@ -98,18 +100,15 @@ void init_pic(void)
 void install_timer_interrupt(void)
 {
     idt_set_gate(32, (uint32_t)isr32, 0x08, 0x8E);
-    printf("Timer interrupt installed at vector 0x20(IRQ0)\n");
+    log_info(interrupt_tag, "Timer interrupt installed at vector 0x20(IRQ0)\n");
 }
 
 void install_keyboard_interrupt(void) {
-    // 设置IRQ1（键盘）的中断向量
-    // 假设键盘中断使用中断向量0x21（IRQ1 + 0x20）
-    idt_set_gate(0x21, (uint32_t)keyboard_interrupt_handler, 0x08, 0x8E);
+
+    idt_set_gate(33, (uint32_t)isr33, 0x08, 0x8E);
     
-    // 向PIC发送EOI（如果之前有中断挂起）
-    outb(0x20, 0x20);
     
-    log_info("INTERRUPT", "Keyboard interrupt handler installed at vector 0x21");
+    log_info(interrupt_tag, "INTERRUPT", "Keyboard interrupt handler installed at vector 0x21");
 }
 
 /* 默认异常处理 */

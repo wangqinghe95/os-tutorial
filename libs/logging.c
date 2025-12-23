@@ -30,7 +30,7 @@ void log_message(log_level_t level, const char* tag, const char* format, ...)
     va_end(args);
 
     printf_color(make_color(color, BLACK), "%s", buffer);
-    put_char('\n', color);
+    putchar('\n');
 }
 
 void set_log_level(log_level_t level) {
