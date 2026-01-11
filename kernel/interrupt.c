@@ -93,7 +93,7 @@ void init_pic(void)
     outb(0x21, 0x01);
     outb(0xA1, 0x01);
 
-    outb(0x21, 0xFC);
+    outb(0x21, 0xE8);
     outb(0xA1, 0xFF);
 }
 
@@ -103,12 +103,19 @@ void install_timer_interrupt(void)
     log_info(interrupt_tag, "Timer interrupt installed at vector 0x20(IRQ0)\n");
 }
 
-void install_keyboard_interrupt(void) {
 
+void install_keyboard_interrupt(void)
+{
+    // log_info(interrupt_tag, "1111");
     idt_set_gate(33, (uint32_t)isr33, 0x08, 0x8E);
-    
-    
-    log_info(interrupt_tag, "INTERRUPT", "Keyboard interrupt handler installed at vector 0x21");
+    log_info(interrupt_tag, "Keybo interrupt handler installed at vector 0x21");
+}
+
+
+void install_serial_interrupt(void)
+{
+    idt_set_gate(36, (uint32_t)isr36, 0x08, 0x8E);
+    // log_info(interrupt_tag, "Serial interrupt handler installed at vector 0x21");
 }
 
 /* 默认异常处理 */

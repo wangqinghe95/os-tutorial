@@ -6,10 +6,11 @@ extern general_protection_fault_handler
 extern default_exception_handler
 extern timer_interrupt_handler
 extern keyboard_interrupt_handler
+extern serial_interrupt_handler
 
 ; 全局符号
 global idt_load
-global isr0, isr13, isr32, irs33
+global isr0, isr13, isr32, isr33, isr36
 
 ; 加载IDT
 idt_load:
@@ -39,6 +40,7 @@ ISR_NOERRCODE 0    ; 除零异常
 ISR_ERRCODE 13     ; 通用保护故障
 ISR_NOERRCODE 32    ; 定时器中断（IRQ0）
 ISR_NOERRCODE 33
+ISR_NOERRCODE 36
 
 ; 通用中断处理程序
 isr_common:
@@ -69,6 +71,8 @@ isr_common:
     je .call_timer
     cmp eax, 33
     je .call_keyboard
+    cmp eax, 36
+    je .call_serial
     jmp .call_default
 
 .call_divide_zero:
@@ -89,6 +93,10 @@ isr_common:
 
 .call_keyboard:
     call keyboard_interrupt_handler
+    jmp .done
+
+.call_serial:
+    call serial_interrupt_handler
     jmp .done
 
 .call_default:

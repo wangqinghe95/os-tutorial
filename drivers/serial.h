@@ -11,4 +11,6 @@ int serial_received(void);
 int serial_is_transmit_empty();
 int serial_self_test(void);
 
+void serial_interrupt_handler(void);
+
 #endif

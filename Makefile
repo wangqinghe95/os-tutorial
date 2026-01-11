@@ -114,7 +114,8 @@ debug: $(OS_IMAGE)
 	$(QEMU) -m $(QEMU_MEMORY) \
 	        -drive format=raw,file=$(OS_IMAGE) \
 	        -nographic \
-	        -serial mon:stdio
+			-serial tcp::5555,server,nowait \
+			-monitor stdio
 
 # 图形模式 (VGA输出)
 graphic: $(OS_IMAGE)

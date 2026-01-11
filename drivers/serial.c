@@ -1,5 +1,6 @@
 #include "serial.h"
 #include "port.h"
+#include "vga.h"
 
 #define COM1_PORT 0x3F8
 
@@ -26,6 +27,10 @@ int serial_is_transmit_empty()
     return inb(COM1_PORT + 5) & 0x20;
 }
 
+void serial_interrupt_handler(void)
+{
+    put_char('c', make_color(WHITE, BLACK));
+}
 
 void serial_write_char(char c)
 {

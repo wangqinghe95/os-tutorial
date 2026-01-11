@@ -23,6 +23,7 @@ extern void isr0(void);
 extern void isr13(void);
 extern void isr32(void);
 extern void isr33(void);
+extern void isr36(void);
 
 /* 异常处理函数 */
 void divide_by_zero_handler(struct interrupt_frame* frame);

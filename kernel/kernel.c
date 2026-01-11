@@ -8,6 +8,8 @@
 #include "logging.h"
 #include "cmdline.h"
 
+const char* kernel_tag = "KERNEL";
+
 void kernel_main(void) {
     // 1. 清屏
     clear_screen();
@@ -29,11 +31,21 @@ void kernel_main(void) {
     idt_init();
     init_pic();
     install_timer_interrupt();
+    log_info(kernel_tag, "install_timer_interrupt installed");
+
     install_keyboard_interrupt();
-    memory_init();
+    log_info(kernel_tag, "install_keyboard_interrupt installed");
+
+    install_serial_interrupt();
+
+    // memory_init();
     init_timer();
+    log_info(kernel_tag, "init_timer");
+
     keyboard_init();
-    
+
+    log_info(kernel_tag, "keyboard_init");
+
     // 6. 测试
     // test_heap_allocator();
     // test_stdio_functions();

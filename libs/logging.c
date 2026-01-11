@@ -10,7 +10,7 @@ static const uint8_t level_colors[] = {
 
 void log_init()
 {
-    stdio_init();
+    // stdio_init();
     log_info("LOGGING", "Logging system initialized");
 }
 
@@ -18,7 +18,7 @@ void log_message(log_level_t level, const char* tag, const char* format, ...)
 {
     if(level < current_log_level) return;
 
-    char buffer[256];
+    char buffer[512];
     va_list args;
     uint8_t color = make_color(level_colors[level], BLACK);
 

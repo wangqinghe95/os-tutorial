@@ -178,6 +178,7 @@ static void handle_input_echo(char c) {
 
 /* 键盘中断处理程序 */
 void keyboard_interrupt_handler(void) {
+    printf("1111\n\n\n\n");
     // 读取状态寄存器
     uint8_t status = inb(KEYBOARD_STATUS_PORT);
     if (!(status & 0x01)) {
